@@ -1,0 +1,105 @@
+name: CI/CD Pipeline - Notification Service
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+# --- VARIÁVEIS FIXAS (Atualizadas para o Notification) ---
+env:
+  AWS_REGION: "us-east-1"
+  ECR_REPOSITORY_NAME: "notification-service-repo"
+  ECS_CLUSTER_NAME: "notification-cluster"
+  ECS_SERVICE_NAME: "notification-service"
+
+jobs:
+  # --- INTEGRAÇÃO CONTÍNUA (Qualidade) ---
+  java-ci:
+    name: 'Java Build & Quality Check'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 'Checkout Repository'
+        uses: actions/checkout@v4
+
+      - name: 'Setup Java 17'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # Roda os testes e gera o relatório XML do JaCoCo
+      - name: 'Build and Verify Coverage'
+        run: mvn verify
+
+      # --- Comenta a cobertura no PR ---
+      - name: 'Publish Coverage to PR'
+        if: github.event_name == 'pull_request'
+        id: jacoco
+        uses: madrapps/jacoco-report@v1.6.1
+        with:
+          paths: target/site/jacoco/jacoco.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: 80 
+          title: 'Coverage Report'
+          update-comment: true
+
+  # --- DEPLOY (Entrega Contínua) ---
+  deploy:
+    name: 'Build Docker & Deploy to ECS'
+    needs: java-ci
+    runs-on: ubuntu-latest
+    environment: secrets 
+
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+
+    steps:
+      - name: 'Checkout GitHub Repository'
+        uses: actions/checkout@v4
+    
+      - name: 'Setup Java 17'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: 'Build JAR for Docker'
+        run: mvn package -DskipTests
+
+      - name: 'Configure AWS Credentials'
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 'Login to Amazon ECR'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: 'Build, Tag, and Push Image'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY_NAME }}:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY_NAME }}:latest .
+          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY_NAME }}:$IMAGE_TAG
+          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY_NAME }}:latest
+
+      - name: 'Update ECS Service'
+        run: |
+          aws ecs update-service --cluster ${{ env.ECS_CLUSTER_NAME }} --service ${{ env.ECS_SERVICE_NAME }} --force-new-deployment
+      
+      - name: 'Show ALB URL'
+        run: |
+          # Aqui buscamos o DNS do ALB do Notification Service
+          ALB_URL=$(aws elbv2 describe-load-balancers --names "notification-service-alb" --query "LoadBalancers[0].DNSName" --output text)
+          echo "::notice title=Acesse seu serviço aqui::http://$ALB_URL"
