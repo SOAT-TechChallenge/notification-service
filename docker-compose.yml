@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    container_name: techchallenge-notification-service
+    ports:
+      - "8083:8080"
+      - "5007:5005" # <- porta de debug
+    environment:
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASS: ${EMAIL_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
+    env_file:
+      - .env
