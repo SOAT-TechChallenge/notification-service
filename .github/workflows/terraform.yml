@@ -14,7 +14,6 @@ env:
   ECS_SERVICE_NAME: "notification-service"
 
 jobs:
-  # --- 1. QUALIDADE ---
   java-ci:
     name: 'Java Build & Quality Check'
     runs-on: ubuntu-latest
@@ -42,11 +41,13 @@ jobs:
           title: 'Coverage Report'
           update-comment: true
 
-  # --- 2. TERRAFORM PLAN (Roda sempre) ---
   terraform-plan:
     name: 'Terraform Plan'
     needs: java-ci
-    environment: secrets 
+    environment: secrets
+    defaults:
+          run:
+            working-directory: ./infra
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout Repository'
@@ -69,11 +70,13 @@ jobs:
       - name: 'Terraform Plan'
         run: terraform plan -var="gmail_password=${{ secrets.GMAIL_PASSWORD }}"
 
-  # --- 3. TERRAFORM APPLY (Apenas Merge/Push na Main) ---
   terraform-apply:
     name: 'Terraform Apply'
     needs: terraform-plan
-    environment: secrets 
+    environment: secrets
+    defaults:
+      run:
+        working-directory: ./infra
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
