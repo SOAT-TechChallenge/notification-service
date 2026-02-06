@@ -203,3 +203,11 @@ resource "aws_ecs_service" "notification_service" {
     ]
   }
 }
+
+resource "aws_ssm_parameter" "notification_alb_dns" {
+  name        = "/notification/alb_dns_name"
+  description = "DNS do Load Balancer do Notification Service para o API Gateway"
+  type        = "String"
+  value       = aws_lb.notification_alb.dns_name
+  overwrite   = true
+}
