@@ -1,6 +1,6 @@
 # Notification Service
 
-Um serviço de notificação desenvolvido em Spring Boot para envio de emails via SMTP do Gmail. O projeto segue uma arquitetura limpa (Clean Architecture) e inclui testes automatizados com Cucumber para BDD.
+Um serviço de notificação desenvolvido em Spring Boot para envio de emails via SMTP do Gmail. O projeto segue uma arquitetura limpa (Clean Architecture) e inclui testes automatizados.
 
 ## Funcionalidades
 
@@ -10,7 +10,6 @@ Um serviço de notificação desenvolvido em Spring Boot para envio de emails vi
 - Configuração de infraestrutura como código com Terraform
 - Containerização com Docker
 - Testes automatizados com cobertura de código (Jacoco)
-- Testes de comportamento com Cucumber
 
 ## Tecnologias Utilizadas
 
@@ -21,7 +20,6 @@ Um serviço de notificação desenvolvido em Spring Boot para envio de emails vi
 - **Spring Validation** - Para validação de dados
 - **SpringDoc OpenAPI** - Para documentação da API
 - **Lombok** - Para redução de código boilerplate
-- **Cucumber** - Para testes BDD
 - **Jacoco** - Para cobertura de testes
 - **Docker** - Para containerização
 - **Terraform** - Para infraestrutura como código
@@ -56,6 +54,16 @@ Configure as seguintes variáveis de ambiente para o envio de emails:
 - `EMAIL_USER`: Seu endereço de email do Gmail
 - `EMAIL_PASS`: Senha de app gerada no Gmail (não a senha da conta)
 - `EMAIL_FROM`: Endereço de email que aparecerá como remetente
+
+### Arquivo .env (para Docker Compose)
+
+Para execução com Docker Compose, crie um arquivo `.env` na raiz do projeto com as variáveis de ambiente:
+
+```env
+EMAIL_USER=seu-email@gmail.com
+EMAIL_PASS=sua-senha-app
+EMAIL_FROM=seu-email@gmail.com
+```
 
 ### Arquivo application.properties
 
@@ -95,20 +103,31 @@ docker build -t notification-service .
 
 2. Execute o container:
 ```bash
-docker run -p 8081:8081 \
+docker run -p 8083:8080 \
   -e EMAIL_USER=seu-email@gmail.com \
   -e EMAIL_PASS=sua-senha-app \
   -e EMAIL_FROM=seu-email@gmail.com \
   notification-service
 ```
 
-A aplicação estará disponível em `http://localhost:8081`
+A aplicação estará disponível em `http://localhost:8083`
+
+### Com Docker Compose
+
+1. Configure o arquivo `.env` com suas credenciais de email.
+
+2. Execute a aplicação:
+```bash
+docker-compose up
+```
+
+A aplicação estará disponível em `http://localhost:8083`
 
 ## Documentação da API
 
 A documentação da API está disponível via Swagger UI em:
 - `http://localhost:8080/swagger-ui.html` (desenvolvimento)
-- `http://localhost:8081/swagger-ui.html` (Docker)
+- `http://localhost:8083/swagger-ui.html` (Docker)
 
 ### Endpoint Disponível
 
@@ -135,9 +154,7 @@ Envia um email para o destinatário informado.
 mvn test
 ```
 
-### Testes BDD com Cucumber
 
-Os testes de comportamento estão localizados em `src/test/resources/features/`
 
 ### Cobertura de Testes
 
@@ -165,40 +182,58 @@ O projeto inclui um workflow do GitHub Actions para CI/CD localizado em `.github
 ## Estrutura do Projeto
 
 ```
-src/
-├── main/
-│   ├── java/com/fiap/notification_service/
-│   │   ├── NotificationServiceApplication.java
-│   │   ├── _webApi/
-│   │   │   ├── controller/
-│   │   │   │   ├── NotificationWebController.java
-│   │   │   │   └── errorHandler/
-│   │   │   └── dto/
-│   │   │       └── SendEmailRequestDTO.java
-│   │   └── core/
-│   │       ├── application/
-│   │       │   └── useCases/
-│   │       │       └── notification/
-│   │       │           └── SendEmailUseCase.java
-│   │       ├── controller/
-│   │       │   └── NotificationController.java
-│   │       └── gateways/
-│   │           └── notification/
-│   │               ├── EmailNotificationGateway.java
-│   │               └── EmailNotificationGatewayImpl.java
-│   └── resources/
-│       └── application.properties
-└── test/
-    └── java/com/fiap/notification_service/
-        ├── NotificationServiceApplicationTests.java
-        ├── _webApi/controller/errorHandler/
-        │   └── GlobalHandlerExceptionTest.java
-        ├── core/application/useCases/notification/
-        │   └── SendEmailUseCaseTest.java
-        ├── core/controller/
-        │   └── NotificationControllerTest.java
-        └── core/gateways/notification/
-            └── EmailNotificationGatewayImplTest.java
+.
+├── .env (arquivo de variáveis de ambiente)
+├── docker-compose.yml
+├── Dockerfile
+├── mvnw
+├── mvnw.cmd
+├── pom.xml
+├── README.md
+├── .github/
+│   └── workflows/
+│       └── terraform.yml
+├── infra/
+│   ├── data.tf
+│   ├── main.tf
+│   ├── outputs.tf
+│   ├── providers.tf
+│   ├── terraform.tfvars
+│   └── variables.tf
+└── src/
+    ├── main/
+    │   ├── java/com/fiap/notification_service/
+    │   │   ├── NotificationServiceApplication.java
+    │   │   ├── _webApi/
+    │   │   │   ├── controller/
+    │   │   │   │   ├── NotificationWebController.java
+    │   │   │   │   └── errorHandler/
+    │   │   │   └── dto/
+    │   │   │       └── SendEmailRequestDTO.java
+    │   │   └── core/
+    │   │       ├── application/
+    │   │       │   └── useCases/
+    │   │       │       └── notification/
+    │   │       │           └── SendEmailUseCase.java
+    │   │       ├── controller/
+    │   │       │   └── NotificationController.java
+    │   │       └── gateways/
+    │   │           └── notification/
+    │   │               ├── EmailNotificationGateway.java
+    │   │               └── EmailNotificationGatewayImpl.java
+    │   └── resources/
+    │       └── application.properties
+    └── test/
+        └── java/com/fiap/notification_service/
+            ├── NotificationServiceApplicationTests.java
+            ├── _webApi/controller/errorHandler/
+            │   └── GlobalHandlerExceptionTest.java
+            ├── core/application/useCases/notification/
+            │   └── SendEmailUseCaseTest.java
+            ├── core/controller/
+            │   └── NotificationControllerTest.java
+            └── core/gateways/notification/
+                └── EmailNotificationGatewayImplTest.java
 ```
 
 ## Arquitetura

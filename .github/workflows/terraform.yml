@@ -46,6 +46,7 @@ jobs:
   terraform-plan:
     name: 'Terraform Plan'
     needs: java-ci
+    environment: secrets 
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout Repository'
@@ -72,6 +73,7 @@ jobs:
   terraform-apply:
     name: 'Terraform Apply'
     needs: terraform-plan
+    environment: secrets 
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
