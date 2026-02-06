@@ -150,5 +150,6 @@ jobs:
       
       - name: 'Show ALB URL'
         run: |
-          ALB_URL=$(aws elbv2 describe-load-balancers --query "LoadBalancers[?Tags[?Key=='Name' && Value=='notification-service-alb']].DNSName" --output text)
+          # Busca direta pelo nome do ALB definido no Terraform
+          ALB_URL=$(aws elbv2 describe-load-balancers --names "notification-service-alb" --query "LoadBalancers[0].DNSName" --output text)
           echo "::notice title=Link de Acesso::http://$ALB_URL"
