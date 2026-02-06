@@ -1,47 +1,4 @@
-terraform {
-  required_version = ">= 1.0"
-  backend "s3" {
-    bucket = "challenge-hackathon"
-    key    = "notification-service/terraform.tfstate"
-    region = "us-east-1"
-  }
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = "us-east-1"
-}
-
-# --- Variáveis (Onde recebemos a senha externamente) ---
-variable "gmail_password" {
-  description = "Senha de App do Gmail (16 digitos)"
-  type        = string
-  sensitive   = true
-}
-
-# --- Data Sources ---
-
-data "aws_vpc" "default" {
-  default = true
-}
-
-data "aws_subnets" "all" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-}
-
-data "aws_iam_role" "lab_role" {
-  name = "LabRole"
-}
-
-# --- SSM Parameter (Cria o segredo com a senha) ---
+# --- SSM Parameter (Segredo) ---
 resource "aws_ssm_parameter" "email_pass" {
   name        = "/notification-service/EMAIL_PASS"
   description = "Senha de App do Gmail"
@@ -73,7 +30,6 @@ resource "aws_security_group" "alb_sg" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow HTTP from world"
   }
 
   egress {
@@ -81,10 +37,6 @@ resource "aws_security_group" "alb_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "notification-alb-sg"
   }
 }
 
@@ -93,7 +45,6 @@ resource "aws_security_group" "ecs_sg" {
   description = "Security group for ECS tasks"
   vpc_id      = data.aws_vpc.default.id
 
-  # Entrada: Só aceita vindo do ALB
   ingress {
     from_port       = 8080
     to_port         = 8080
@@ -101,32 +52,22 @@ resource "aws_security_group" "ecs_sg" {
     security_groups = [aws_security_group.alb_sg.id]
   }
 
-  # Saída: Liberada para a Internet (SMTP Gmail)
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "notification-ecs-sg"
-  }
 }
 
 # --- Load Balancer (ALB) ---
 
 resource "aws_lb" "notification_alb" {
-  name                       = "notification-service-alb"
-  internal                   = false
-  load_balancer_type         = "application"
-  security_groups            = [aws_security_group.alb_sg.id]
-  subnets                    = slice(data.aws_subnets.all.ids, 0, min(2, length(data.aws_subnets.all.ids)))
-  enable_deletion_protection = false
-
-  tags = {
-    Name = "notification-service-alb"
-  }
+  name               = "notification-service-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = slice(data.aws_subnets.all.ids, 0, min(2, length(data.aws_subnets.all.ids)))
 }
 
 resource "aws_lb_target_group" "notification_tg" {
@@ -143,10 +84,6 @@ resource "aws_lb_target_group" "notification_tg" {
     healthy_threshold   = 2
     unhealthy_threshold = 5
     matcher             = "200"
-  }
-
-  tags = {
-    Name = "notification-tg"
   }
 }
 
@@ -165,7 +102,6 @@ resource "aws_lb_listener" "notification_listener" {
   }
 }
 
-# Regra de Segurança do Gateway (Token Header)
 resource "aws_lb_listener_rule" "allow_gateway" {
   listener_arn = aws_lb_listener.notification_listener.arn
   priority     = 100
@@ -192,10 +128,6 @@ resource "aws_ecs_cluster" "notification_cluster" {
     name  = "containerInsights"
     value = "disabled"
   }
-
-  tags = {
-    Name = "notification-cluster"
-  }
 }
 
 resource "aws_ecs_task_definition" "notification_task" {
@@ -220,25 +152,16 @@ resource "aws_ecs_task_definition" "notification_task" {
       logDriver = "awslogs"
       options = {
         awslogs-group         = "/ecs/notification-service"
-        awslogs-region        = "us-east-1"
+        awslogs-region         = "us-east-1"
         awslogs-stream-prefix = "ecs"
         awslogs-create-group  = "true"
       }
     }
 
     environment = [
-      {
-        name  = "SERVER_PORT"
-        value = "8080"
-      },
-      {
-        name  = "EMAIL_USER"
-        value = "leyner09henrique@gmail.com"
-      },
-      {
-        name  = "EMAIL_FROM"
-        value = "TechChallenge <leyner09henrique@gmail.com>"
-      }
+      { name = "SERVER_PORT", value = "8080" },
+      { name = "EMAIL_USER", value = "leyner09henrique@gmail.com" },
+      { name = "EMAIL_FROM", value = "TechChallenge <leyner09henrique@gmail.com>" }
     ]
 
     secrets = [
@@ -248,10 +171,6 @@ resource "aws_ecs_task_definition" "notification_task" {
       }
     ]
   }])
-
-  tags = {
-    Name = "notification-service-task"
-  }
 }
 
 resource "aws_ecs_service" "notification_service" {
@@ -275,23 +194,12 @@ resource "aws_ecs_service" "notification_service" {
     container_port   = 8080
   }
 
-  deployment_controller {
-    type = "ECS"
-  }
-
-  tags = {
-    Name = "notification-service"
-  }
-
   depends_on = [aws_lb_listener.notification_listener]
-}
 
-# --- Outputs ---
-
-output "ecr_repo" {
-  value = aws_ecr_repository.notification_service.repository_url
-}
-
-output "api_url" {
-  value = "http://${aws_lb.notification_alb.dns_name}"
+  lifecycle {
+    ignore_changes = [
+      task_definition,
+      load_balancer
+    ]
+  }
 }
